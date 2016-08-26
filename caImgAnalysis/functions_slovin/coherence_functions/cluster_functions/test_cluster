@@ -1,0 +1,22 @@
+
+
+
+
+
+load 1111
+a=size(roi_tar,1);
+
+for p=1:a
+    pp=str2double(roi_tar(p));
+    disp(p)
+    tic
+    for l=0:159
+        k=str2double(l);
+        coherence_vsdi_cond1(pp,'1','1111',k);
+        cd ..
+    end
+    toc
+    unite_data_cond1_V1(pp,'1','1111')
+    unite_pixels('tar','1','1111');
+
+end

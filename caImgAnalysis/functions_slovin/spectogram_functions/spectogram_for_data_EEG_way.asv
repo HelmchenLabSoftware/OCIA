@@ -1,0 +1,44 @@
+function [spect_ave,baseline_ave]=spectogram_for_data_EEG_way(data,win,baseline,roi)
+%this function calculates a spectogram for a data set
+%the data variable should be 3d matrix of all the trials 
+%the win input variable is the size of the window that will be calculted in
+%the spectogram. It should be in frame numbers
+%the baseline input variable should be a vector that sets the baseline of
+%each pixel (row in the 3d matrix). Baseline is calculated from the begining of each trial from this baseline the DB will be
+%calculated for each pixel and for each window
+%each window transform the time domain through a fft using a hamming window
+%and the output is in DB
+%data=data(:,2:end,:)-1;
+k=0;
+[PSD_EEG]=EEG_transform(data);
+[PSD_EEG_ROI]=transform_EEG_ROI(PSD_EEG,roi);
+NFFT = 2^nextpow2(max(size(baseline,2),win+1));
+spect=zeros(win,size(data,2)-win-1);
+for h=1:size(data,2)-1:size(PSD_EEG_ROI,2)
+    k=k+1;
+    disp(h)
+    for j=1:(size(data,2)-win-1)
+        w=hamming(win).';
+        %w=hann(win).';
+        data_win=w.*(PSD_EEG_ROI(h+j-1:h+j+win-2)-mean(PSD_EEG_ROI(h+j-1:h+j+win-2)));
+        y=fft(data_win,NFFT);
+        %y=y./win;
+        %y = y(:,2:2*win/2+1);
+        %Pxx=2/0.375*abs(y).^2;
+        Pxx=y.*conj(y);
+        clear y data_win;
+        spect(:,j)=Pxx(1:16).';
+        clear Pxx
+    end;
+    if h==1
+        spect_ave=spect;
+    else
+       spect_ave=spect_ave+spect;
+    end;
+end;
+spect_ave=spect_ave./k;
+baseline_ave=nanmean(spect_ave(:,baseline),2); 
+spect_ave=10*(log10(spect_ave)-log10(baseline_ave(:,1*ones(1,size(spect_ave,2)))));
+        
+        
+      

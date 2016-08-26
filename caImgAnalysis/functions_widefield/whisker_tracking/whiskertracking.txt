@@ -1,0 +1,28 @@
+1. Turn on Virtual Dub
+2. check number of frames of an example file from the session folder
+3. update splitter file (vdub destination) and splitterscript.vdscript (number of frames to be split)
+4. select all files to be split and drop it on splitter file
+
+5. seperate originals from fragments
+6. rename files (. with -)
+
+
+7. move wt_knutsen folder under the session folder
+8. open makemovielist.m file under scripts and run
+9. turn on whiskertracker gui
+10. open one file from the session that you want to process
+11. go  and click options>scripts>track average whisker position jc aa
+12. follow the steps of whisker pad origin selection, the axis and the region of interest
+13. if necessary adjust thershold (treshmultiplier: track_average_whisker_position_jc_aa)
+14. for processing rest of the folder with the selection properties of the previous file
+go  and click options>scripts>track several jc aa
+15. choose the file that you want to use the parameters of.
+
+16. Run whiskertracking\concatanateSegments. insert direction path
+17. Check with "figure" quality of the pictures
+
+let me know if you have any issues
+Asli
+
+PS: whisker tracking folder destination
+W:\Neurophysiology\Projects\VIrtualTactile\code\whisker tracking

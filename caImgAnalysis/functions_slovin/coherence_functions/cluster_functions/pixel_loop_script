@@ -1,0 +1,15 @@
+#!/bin/bash
+
+ARRAY=(6582 6584)
+ELEMENTS=${#ARRAY[@]}
+
+for (( p=0;p<$ELEMENTS;p++))
+do
+
+export INPUT1=p
+export INPUT2=4
+export INPUT3=2301
+
+qsub -V -t 160 -N Ariel_coher -q batch script_for_ariel.pbs
+
+done
