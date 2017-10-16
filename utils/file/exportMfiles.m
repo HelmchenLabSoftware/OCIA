@@ -24,7 +24,7 @@ end
 
 req = cell(size(funcname));
 for i=1:numel(funcname)
-    req{i} = mydepfun(funcname{i},1); % recursive
+    req{i} = depfunFast(funcname{i},1); % recursive
 end
 req = vertcat(req{:}); % cell arrays of full file names
 req = unique(req);
