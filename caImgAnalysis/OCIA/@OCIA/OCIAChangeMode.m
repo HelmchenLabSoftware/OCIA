@@ -200,6 +200,8 @@ switch newModeName;
             label = this.an.analysisTypes.label{iType};
             % get the icon for this plot type
             iconPath = regexprep(which('OCIA'), '@OCIA.OCIA\.m', sprintf('icons/plotIcons/%s.png', name));
+            iconPath = regexprep(iconPath, '\\', '/');
+            iconPath = regexprep(iconPath, '//VBOXSVR/vBoxOOSISPC', 'F:/');
             % if the icon exists, use it as element
             if exist(iconPath, 'file');
                 HTMLCellString{iType} = sprintf('<html><img src="file:/%s"/>', iconPath);
