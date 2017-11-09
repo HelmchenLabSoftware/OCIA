@@ -200,8 +200,6 @@ switch newModeName;
             label = this.an.analysisTypes.label{iType};
             % get the icon for this plot type
             iconPath = regexprep(which('OCIA'), '@OCIA.OCIA\.m', sprintf('icons/plotIcons/%s.png', name));
-            iconPath = regexprep(iconPath, '\\', '/');
-            iconPath = regexprep(iconPath, '//VBOXSVR/vBoxOOSISPC', 'F:/');
             % if the icon exists, use it as element
             if exist(iconPath, 'file');
                 HTMLCellString{iType} = sprintf('<html><img src="file:/%s"/>', iconPath);
@@ -242,10 +240,27 @@ switch newModeName;
         if isGUI(this);
             
             this.GUI.handles.jt.img = imshow(this.GUI.jt.img, 'DisplayRange', [0 1], 'Parent', this.GUI.handles.jt.axe);
+            this.GUI.handles.jt.validImg = imagesc(this.GUI.jt.jointValidity, 'Parent', this.GUI.handles.jt.joinValAxe);
+            set(this.GUI.handles.jt.joinValAxe, 'XTick', [], 'YTick', [], 'XColor', 'white', 'YColor', 'white');
+            cMap = flipud(redgreencmap(100000));
+            cMap(1, :) = [0.8, 0.8, 0.8];
+            colormap(this.GUI.handles.jt.joinValAxe, cMap);
+            if gcf ~= this.GUI.figH; close(gcf); end;
+            set(this.GUI.handles.jt.joinValAxe, 'CLim', [0, 1], 'XLim', [0.5 this.jt.nFrames + 0.5], ...
+                'YLim', [0.5 this.jt.nJoints + 0.5]);
+            for iJoint = 1 : this.jt.nJoints - 1;
+                line([0 this.jt.nFrames], [iJoint, iJoint] + 0.5, 'Parent', this.GUI.handles.jt.joinValAxe, ...
+                    'LineWidth', 1, 'Color', 'black', 'LineStyle', ':');
+            end;
+            this.GUI.handles.jt.validityFrameIndicator = line([1 1], [0.55, this.jt.nJoints + 0.5], ...
+                'Parent', this.GUI.handles.jt.joinValAxe, 'LineWidth', 1, 'Color', 'black', 'LineStyle', '--');
             
+            %%
             % set tags
             set(this.GUI.handles.jt.img, 'Tag', 'JTImg');
             set(this.GUI.handles.jt.axe, 'Tag', 'JTAxe');
+            set(this.GUI.handles.jt.validImg, 'Tag', 'JTValid');
+            set(this.GUI.handles.jt.joinValAxe, 'Tag', 'JTValidAxe');
 
             % add a callback for the frame setter
             jObj = findjobj(this.GUI.handles.jt.frameSetter);

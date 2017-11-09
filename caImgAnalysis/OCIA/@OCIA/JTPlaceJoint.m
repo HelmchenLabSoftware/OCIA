@@ -75,7 +75,27 @@ if get(this.GUI.handles.jt.viewOpts.boundBoxes, 'Value') && all(bBoxPos);
         'LineWidth', dispSet{12}, 'EdgeColor', dispSet{13}, 'LineStyle', dispSet{14});
 end;
 
-% display and save the coordinates;
+% draw the joint distances if required
+if get(this.GUI.handles.jt.viewOpts.jointDist, 'Value');
+
+%     prevJointDist = 2 * this.jt.jointConfig{iJoint, 4}(1);
+%     if ~isnan(prevJointDist);
+%         rPos = [pos - prevJointDist / 2, prevJointDist, prevJointDist];
+%         rectangle('Parent', this.GUI.handles.jt.axe, 'Position', rPos, 'Curvature', [1, 1], 'Tag', ...
+%             sprintf('JTDist_%s_%02d', this.jt.jointTypes{iJointType, 1}, iJoint), ...
+%             'LineWidth', 2, 'EdgeColor', iff(mod(iJoint, 2), 'red', 'blue'), 'LineStyle', ':');
+%     end;    
+    
+    nextJointDist = 2 * this.jt.jointConfig{iJoint, 4}(2);
+    if ~isnan(nextJointDist);
+        rPos = [pos - nextJointDist / 2, nextJointDist, nextJointDist];
+        rectangle('Parent', this.GUI.handles.jt.axe, 'Position', rPos, 'Curvature', [1, 1], 'Tag', ...
+            sprintf('JTDist_%s_%02d', this.jt.jointTypes{iJointType, 1}, iJoint), ...
+            'LineWidth', 2, 'EdgeColor', iff(mod(iJoint, 2), 'blue', 'green'), 'LineStyle', ':');
+    end;
+end;
+
+% display and save the coordinates
 this.jt.joints(iJoint, iFrame, :, iJointType) = pos;
 o('#JTPlaceJoint(): joint %d created, coordinates: [%.1f,%.1f].', iJoint, pos, 4, this.verb);
 

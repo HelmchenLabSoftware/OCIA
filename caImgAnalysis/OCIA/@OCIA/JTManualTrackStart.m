@@ -31,7 +31,7 @@ if get(this.GUI.handles.jt.manuTrack, 'Value');
         if numel(this.GUI.jt.iJoint) > 1;d
             this.GUI.jt.iJoint = this.GUI.jt.iJoint(1);
             set(this.GUI.handles.jt.joinSelSetter, 'Value', this.GUI.jt.iJoint);
-        end;aa
+        end;
         this.GUI.jt.placeJointIndex = this.GUI.jt.iJoint;
         showMessage(this, sprintf('Started manually tracking joint %s (%d).', ...
             this.jt.jointConfig{this.GUI.jt.iJoint, 1}, this.GUI.jt.iJoint), 'yellow');

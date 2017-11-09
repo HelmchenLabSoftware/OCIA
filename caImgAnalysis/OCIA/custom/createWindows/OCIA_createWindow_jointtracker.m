@@ -13,12 +13,14 @@ NormUnits = {'Units', 'normalized'};
 %% - #OCIACreateWindow: JointTracker
 %% -- #OCIACreateWindow: JointTracker: image axe
 alignOffsetX = 0; alignOffsetY = 0.0025;
-JTFrameSetterH = 0.03;
+JTFrameSetterH = 0.1;
 JTImAxeY = pad + alignOffsetY + JTFrameSetterH + pad; JTImAxeX = pad + alignOffsetX;
-JTImAxeH = 1 - JTFrameSetterH - 2 * pad; JTImAxeHPix = this.GUI.pos(4) * JTImAxeH;
-JTImAxeW = (JTImAxeHPix / this.GUI.pos(3));
-commons = {'Parent', this.GUI.handles.panels.JointTrackerPanel, 'Color', 'black', NormUnits{:}};
-this.GUI.handles.jt.axe = axes(commons{:}, 'Tag', 'JTAxe', 'Position', [JTImAxeX JTImAxeY JTImAxeW JTImAxeH]);
+% JTImAxeH = 1 - JTFrameSetterH - 2 * pad; JTImAxeHPix = this.GUI.pos(4) * JTImAxeH;
+% JTImAxeW = (JTImAxeHPix / this.GUI.pos(3));
+JTImAxeH = 1 - JTFrameSetterH - 2 * pad;
+JTImAxeW = 0.7;
+axCommons = {'Parent', this.GUI.handles.panels.JointTrackerPanel, 'Color', 'black', NormUnits{:}};
+this.GUI.handles.jt.axe = axes(axCommons{:}, 'Tag', 'JTAxe', 'Position', [JTImAxeX JTImAxeY JTImAxeW JTImAxeH]);
 %% -- #OCIACreateWindow: JointTracker: image handle (imshow)
 % the creation of the image is done later to avoid weird flickering effect due to imshow
 this.GUI.handles.jt.img = [];
@@ -26,15 +28,15 @@ this.GUI.handles.jt.img = [];
 %% -- #OCIACreateWindow: JointTracker: frame browsing slider's label
 alignOffsetY = 0.005;
 commons = {'Parent', this.GUI.handles.panels.JointTrackerPanel, NormUnits{:}};
-JTFrameLabelW = 0.055; JTFrameLabelX = pad; JTFrameLabelY = pad - alignOffsetY;
-this.GUI.handles.jt.frameLabel = uicontrol(commons{:}, 'Style', 'text', 'String', 'Frame 000', ...
+JTFrameLabelW = 0.075; JTFrameLabelX = pad; JTFrameLabelY = pad - alignOffsetY;
+this.GUI.handles.jt.frameLabel = uicontrol(commons{:}, 'Style', 'text', 'String', sprintf('F  000\nT  00:00.000\nM 0000 0000'), ...
     'Tag', 'JTFrameLabel', BGWhite{:}, 'Position', [JTFrameLabelX, JTFrameLabelY, JTFrameLabelW, JTFrameSetterH], ...
-     'FontSize', this.GUI.pos(4) / 100, 'HorizontalAlignment', 'left');
+     'FontSize', this.GUI.pos(4) / 50, 'HorizontalAlignment', 'left');
 
 %% -- #OCIACreateWindow: JointTracker: frame browsing slider
-alignOffsetX = -0.009;
+alignOffsetX = -0.009; alignOffsetY = 0.009;
 JTFrameSetterW = JTImAxeW - JTFrameLabelW - 2 * pad - alignOffsetX;
-JTFrameSetterX = JTFrameLabelX + JTFrameLabelW + pad; JTFrameSetterY = pad;
+JTFrameSetterX = JTFrameLabelX + JTFrameLabelW + pad; JTFrameSetterY = pad - alignOffsetY;
 this.GUI.handles.jt.frameSetter = uicontrol(commons{:}, 'Style', 'slider', 'Min', 0, 'Max', 1, 'Value', 0, ...
     'SliderStep', [0 1], 'TooltipString', 'Change frame', 'Tag', ...
     'JTFrameSetter', 'Enable', 'off', 'Position', [JTFrameSetterX, JTFrameSetterY, JTFrameSetterW, JTFrameSetterH]);
@@ -163,11 +165,18 @@ this.GUI.handles.jt.showInfo = uicontrol(commons{:}, 'String', 'Show info.', 'To
     'Show some informations about the joints', 'Tag', 'JTShowInfo', 'Callback', @(h, e)JTShowInfo(this, h, e), ...
     'Position', [showInfoX, showInfoY, showInfoW, showInfoH]);
 
+%% - #OCIACreateWindow: JointTracker: refine joints button
+commons = {'Parent', this.GUI.handles.panels.JointTrackerPanel, NormUnits{:}, 'Value', 0, 'Style', 'togglebutton'};
+doRefineJointPosW = loadW; doRefineJointPosH = loadH; doRefineJointPosX = showInfoX + showInfoW + pad; doRefineJointPosY = defineROIY;
+this.GUI.handles.jt.doRefineJointPos = uicontrol(commons{:}, 'String', 'Refine joint pos.', 'TooltipString', ...
+    'Refine the joint''s position', 'Tag', 'JTRefinePos', 'Callback', @(h, e)JTProcess(this, '', h, e), ...
+    'Position', [doRefineJointPosX, doRefineJointPosY, doRefineJointPosW, doRefineJointPosH]);
+
 %% - #OCIACreateWindow: JointTracker: Joint and joint type manipulation selector label
 commons = {'Parent', this.GUI.handles.panels.JointTrackerPanel, NormUnits{:}, BGWhite{:}};
 alignOffsetY = -0.015;
 jointSelLabX = loadX; jointSelLabW = (1 - jointSelLabX - 4 * pad) * 0.1;
-jointSelLabH = loadH; jointSelLabY = cropY - jointSelLabH - pad + alignOffsetY;
+jointSelLabH = loadH; jointSelLabY = defineROIY - jointSelLabH - pad + alignOffsetY;
 this.GUI.handles.jt.jointSelLabel = uicontrol(commons{:}, 'String', 'Manip.', 'Tag', 'JTJointSelLabel', ...
     'Style', 'text', 'HorizontalAlignment', 'center', ...
     'Position', [jointSelLabX, jointSelLabY, jointSelLabW, jointSelLabH]);
@@ -182,7 +191,7 @@ this.GUI.handles.jt.jointSelDispLabel = uicontrol(commons{:}, 'String', 'Display
 commons = {'Parent', this.GUI.handles.panels.JointTrackerPanel, NormUnits{:}, BGWhite{:}, 'Style', 'listbox', ...
     'FontSize', this.GUI.pos(4) / 35, 'Callback', @(h, e)JTChangeJointOrJointType(this, h, e), 'Min', 0, 'Max', 2};
 jointSelX = jointSelLabX + jointSelLabW + pad; jointSelW = (1 - jointSelLabX - 4 * pad) * 0.65;
-jointSelH = loadH; jointSelY = cropY - jointSelH - pad;
+jointSelH = loadH; jointSelY = defineROIY - jointSelH - pad;
 this.GUI.handles.jt.jointSelSetter = uicontrol(commons{:}, 'Tag', 'JTJointManipSelSett', 'Value', [], ...
     'TooltipString', 'Joint manipulator', 'Position', [jointSelX, jointSelY, jointSelW, jointSelH], ...
     'String', regexp(regexprep(sprintf(' %d,', 1 : this.jt.nJoints), ',$', ''), ',', 'split'));
@@ -202,5 +211,15 @@ this.GUI.handles.jt.jointTypeSelDispSetter = uicontrol(commons{:}, 'Tag', 'JTJoi
     'TooltipString', 'Joint type display', 'Position', [jointTypeSelDispX, jointSelDispY, jointTypeSelDispW, jointSelDispH], ...
     'String', regexp(regexprep(sprintf(' %d,', 1 : this.jt.nJointTypes), ',$', ''), ',', 'split'), ...
     'Value', 1 : this.jt.nJointTypes);
+
+%% - #OCIACreateWindow: JointTracker: Joint validation display
+jointValX = loadX; jointValW = (1 - jointValX - 3 * pad) * 0.8;
+jointValH = loadH * 4; jointValY = jointSelDispY - jointValH - 3 * pad;
+this.GUI.handles.jt.joinValAxe = axes(axCommons{:}, 'Color', 'white', 'Tag', 'JTValAxe', ...
+    'Position', [jointValX jointValY jointValW jointValH], 'XTick', [], 'YTick', [], 'XColor', 'white', 'YColor', 'white');
+jointValDispX = jointValX + jointValW + pad; jointValDispW = (1 - jointValX - 3 * pad) * 0.2;
+this.GUI.handles.jt.joinValDispAxe = axes(axCommons{:}, 'Color', 'white', 'Tag', 'JTValDispAxe', ...
+    'Position', [jointValDispX jointValY jointValDispW jointValH], 'XTick', [], 'YTick', [], 'XColor', 'white', 'YColor', 'white');
+
     
 end

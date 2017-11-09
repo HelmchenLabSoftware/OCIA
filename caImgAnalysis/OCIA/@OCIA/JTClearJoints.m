@@ -46,13 +46,15 @@ if any(clearData(:));
         this.jt.joints(logical(clearData(:, iJointType)), frameRange, :, iJointType) = 0;
         this.GUI.jt.forcedJoints(logical(clearData(:, iJointType)), frameRange, iJointType) = false;
     end;
+    % clear validity for selected joints
+    this.GUI.jt.jointValidity(logical(clearData(:, 1)), frameRange) = NaN;
 end;
 
 % update the GUI
 JTUpdateGUI(this, 'joints');
 
 % set the focus to the frame setter if the call was from a GUI element
-if ~isempty(h) && all(ishandle(h)) && all(h > 0);
+if ~isempty(h) && all(ishandle(h));
     uicontrol(this.GUI.handles.jt.frameSetter);
 end;
 

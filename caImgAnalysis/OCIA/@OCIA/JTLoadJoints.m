@@ -10,12 +10,16 @@ function JTLoadJoints(this, ~, ~)
 loadTic = tic; % for performance timing purposes
 showMessage(this, 'Loading joints ...', 'yellow');
 
-% create load path
-moviePath = DWGetFullPath(this, this.dw.selectedTableRows(1));
-% extract file name and change extension
-fileName = regexprep(regexp(moviePath, '/[^/]+$', 'match'), '\.[^\.]+$', '.mat');
-day = this.dw.table{this.dw.selectedTableRows(1), 2};
-loadPath = sprintf('%s%s%s', this.path.OCIASave, day, fileName{1});
+% % create load path
+% moviePath = DWGetFullPath(this, this.dw.selectedTableRows(1));
+% % extract file name and change extension
+% fileName = regexprep(regexp(moviePath, '/[^/]+$', 'match'), '\.[^\.]+$', '.mat');
+% day = this.dw.table{this.dw.selectedTableRows(1), 2};
+% loadPath = sprintf('%s%s%s', this.path.OCIASave, day, fileName{1});
+
+% save joints data as a file with the same name and a different extension
+moviePath = this.path.moviePath;
+loadPath = regexprep(moviePath, '\.[^\.]+$', '.mat');
 
 if ~exist(loadPath, 'file');
     showWarning(this, 'OCIA:JT:JTLoadJoints:FileNotFound', ...

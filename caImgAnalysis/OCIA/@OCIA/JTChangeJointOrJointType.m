@@ -8,7 +8,7 @@ function JTChangeJointOrJointType(this, h, ~)
 % 2013-2016 - Copyleft and programmed by Balazs Laurenczy (blaurenczy_at_gmail.com)
 
 % check if h is a handle
-isHHandle = ~isempty(h) && h > 0 && ishandle(h);
+isHHandle = ~isempty(h) && ishandle(h);
 
 if isHHandle && h == this.GUI.handles.jt.jointSelSetter;
     

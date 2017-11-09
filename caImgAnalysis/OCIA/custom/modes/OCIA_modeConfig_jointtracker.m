@@ -15,6 +15,8 @@ this.jt.slidingAvgWindowPercentage = 0.3;
 this.jt.frames = [];
 % number of frames of the movie
 this.jt.nFrames = 0;
+% frame rate of the movie
+this.jt.frameRate = NaN;
 
 % number of joints to track
 this.jt.nJoints = 0;
@@ -75,10 +77,14 @@ this.GUI.jt.iJoint = [];
 this.GUI.jt.forcedJoints = zeros(this.jt.nJoints, this.jt.nFrames, this.jt.nJointTypes);
 % positions of the used bounding boxes
 this.GUI.jt.boundBoxPos = zeros(this.jt.nJoints, this.jt.nFrames, this.jt.nJointTypes, 4);
+% validity values (F2F corr) of each joint on each frame
+this.GUI.jt.jointValidity = nan(this.jt.nJoints, this.jt.nFrames);
 % handles for the joints' ROIs
 this.GUI.jt.jointROIHandles = cell(this.jt.nJoints, 1);
 % handles for the movie croping
 this.GUI.jt.cropROIHandle = [];
+% coordinates of the mouse over the image
+this.GUI.jt.mouseCoords = [];
 
 % defines whether to ask for a confirmation before reseting all joints
 this.GUI.jt.askResetConfirm = true;
@@ -88,6 +94,8 @@ this.GUI.jt.imPreProcROI = [];
 this.GUI.jt.imPreProcROIMask = [];
 % defines whether the user is currently selecting a Region Of Interest, in which case other click events are invalid
 this.GUI.jt.selectingROI = false;
+% defines the position of the debug windows
+this.GUI.jt.debugFigPos = [10 10 800 600];
 
 % types of GUI view options
 this.GUI.jt.viewOpts = {
@@ -95,8 +103,10 @@ this.GUI.jt.viewOpts = {
     'jointLines',   'Joint lines',      'Show the joints lines (skeleton)';
     'preProc',      'Pre-processed',    'Show the pre-processed frames (or the originals if not checked)';
     'ROIs',         'ROI masks',        'Show the mask restricting the joints'' position';
-    'boundBoxes',   'Bounding boxes',   'Show the bounding boxes for the joint finding';
-    'debugPlots',   'Debug plots',      'Show the debug plots (all sorts of plots showing what is going on)';
+    'boundBoxes',   'Bound. boxes',     'Show the bounding boxes for the joint finding';
+    'jointDist',    'Joint dist.',      'Show the distance to the *next* joint for the joint finding';
+    'debugPlots',   'Debug plot',       'Show the debug plots (all sorts of plots showing what is going on)';
+    'validPlots',   'Valid. plot',      'Show the validation plots (for a better assessment of the validation process)';
 };
 
 % frame index at the begining of the joint track

@@ -36,6 +36,6 @@ end;
 % scale the data
 scaledData = slope .* data + intercept;
 % make sure data does not go beyond boundaries
-scaledData(scaledData < yMin) = yMin;
-scaledData(scaledData > yMax) = yMax;
+scaledData(scaledData < min(yMin, yMax)) = min(yMin, yMax);
+scaledData(scaledData > max(yMin, yMax)) = max(yMin, yMax);
 

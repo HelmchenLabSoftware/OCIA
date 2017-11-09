@@ -81,7 +81,8 @@ switch jointFindMethod;
         % calculate center's offset
         centerOffset = (size(refImg) - centerSize) / 2;
         % get the cropped image
-        refTemplate = imcrop(refImg, [fliplr(centerOffset), fliplr(centerSize) + 1]);
+        refTemplate = imcrop(refImg, [fliplr(centerOffset), fliplr(centerSize)]);
+        o('Ref template size: %.3f x %.3f', size(refTemplate), 3, this.verb);
 
         % get a template from a gaussian distribution of the joint's size
         centerSize = jointSize;
@@ -97,21 +98,27 @@ switch jointFindMethod;
         gaussTemplate = zeros(gaussTemplateSize) + min(gaussTemplateCenter(:));
         % calculate center's offset
         centerOffset = (size(gaussTemplate) - centerSize) / 2;
+        o('centerOffset: %.3f x %.3f', centerOffset, 3, this.verb);
         % if no offset required, just use the center
         if ~all(centerOffset > 0);
             gaussTemplate = gaussTemplateCenter;
         % otherwise replace the center in the template
         else
-            gaussTemplate(centerOffset(1) + 1: end - centerOffset(1), ...
-                centerOffset(2) + 1 : end - centerOffset(2)) = gaussTemplateCenter;
+            gaussTemplate(floor(centerOffset(1) + 1) : floor(end - centerOffset(1)), ...
+                floor(centerOffset(2) + 1) : floor(end - centerOffset(2))) = gaussTemplateCenter;
         end;
         % scale the template between 0 and 1
         gaussTemplate = linScale(gaussTemplate);
+        o('Gauss template center size: %.3f x %.3f', size(gaussTemplateCenter), 3, this.verb);
+        o('Gauss template size: %.3f x %.3f', size(gaussTemplate), 3, this.verb);
 
+        % make sure both images are the same size
+        gaussTemplate = imresize(gaussTemplate, size(refTemplate));
+        
         imgSteps = [imgSteps; { refTemplate, 'ref_template'; gaussTemplate, 'gauss_template'; }];
 
         % combine the two templates
-        refTemplate = linScale(0.4 * refTemplate + gaussTemplate);
+        refTemplate = linScale(this.jt.jointConfig{iJoint, 10} * refTemplate + gaussTemplate);
         
     otherwise 
         
@@ -150,8 +157,9 @@ if isempty(iMaxInds);
 end;
 
 %% apply distance constraints
-% create the distance weighting mask
+% create the distance and angle weighting mask
 distanceWeights = zeros(numel(iMaxInds), 1);
+angleWeights = zeros(numel(iMaxInds), 1);
 
 % go through the two possibilities: previous and next joint
 for iLoopRefJoint = [-1 1];
@@ -165,8 +173,10 @@ for iLoopRefJoint = [-1 1];
     % get the coordinates of the reference joint
     refJointCurrFrame = squeeze(this.jt.joints(iRefJoint, iFrame, :, this.GUI.jt.iJointType));
     refJointDistance = this.jt.jointConfig{iJoint, 4}(1.5 + iLoopRefJoint * 0.5); % index is either 1 or 2
-    currJointPrevFrame = squeeze(this.jt.joints(iJoint, iFrame - 1, :, this.GUI.jt.iJointType));
+    
+    % get the coordinates of the reference joint on the previous 
     refJointPrevFrame = squeeze(this.jt.joints(iRefJoint, iFrame - 1, :, this.GUI.jt.iJointType));
+    currJointPrevFrame = squeeze(this.jt.joints(iJoint, iFrame - 1, :, this.GUI.jt.iJointType));
     
     % if the reference joint is not set on the current frame, skip
     if ~all(refJointCurrFrame); continue; end;
@@ -185,8 +195,7 @@ for iLoopRefJoint = [-1 1];
         % add the weighted distance to the pixel's weights
         distanceWeights(iPixel) = distanceWeights(iPixel) + weightedDistDiff;
         
-        %{
-        midPointPrev = [currJointPrevFrame(1, :); refJointPrevFrame(2, :)];
+        midPointPrev = [currJointPrevFrame(1, :); refJointPrevFrame(2, :)]; %#ok<PFBNS>
         midPointCurr = [realCoords(:, 1)'; refJointCurrFrame(2, :)];
         % get the angle between the reference joint, this joint and the horizontal on the *previous* frame
         angleOnPrev = atan2(det([midPointPrev' - refJointPrevFrame'; currJointPrevFrame' - refJointPrevFrame']), ...
@@ -197,13 +206,12 @@ for iLoopRefJoint = [-1 1];
         % get the normalized angle difference
         angleDiff = abs(angleOnPrev - angleOnCurr) * 0.5;
         % add the weighted distance's angle componenet to the pixel's weights
-        distanceWeights(iPixel) = distanceWeights(iPixel) + angleDiff;
-        %}
+        angleWeights(iPixel) = angleWeights(iPixel) + angleDiff;
         
     end;
     
     % put the weights as an image for display if required
-    if doPlot;
+    if doPlot;        
         distanceWeightsMask = zeros(size(img));
         for iPixel = 1 : size(iMaxInds, 1);
             [i, j] = ind2sub(size(img), iMaxInds(iPixel));
@@ -211,12 +219,23 @@ for iLoopRefJoint = [-1 1];
         end;
         distanceWeightsMask = linScale(distanceWeightsMask);
         imgSteps = [imgSteps; { distanceWeightsMask, 'showPoints_distWeightMask'; ...
-            img - distanceWeightsMask, 'showPoints_weightedImg'; }]; %#ok<AGROW>
+            img - distanceWeightsMask, 'showPoints_1stWeightedImg'; }]; %#ok<AGROW>
+        
+        angleWeightsMask = zeros(size(img));
+        for iPixel = 1 : size(iMaxInds, 1);
+            [i, j] = ind2sub(size(img), iMaxInds(iPixel));
+            angleWeightsMask(i, j) = angleWeights(iPixel);
+        end;
+        angleWeightsMask = linScale(angleWeightsMask);
+        imgSteps = [imgSteps; { angleWeightsMask, 'showPoints_angleWeightMask'; ...
+            img - angleWeightsMask, 'showPoints_2ndWeightedImg'; }]; %#ok<AGROW>
     end;
 end;
 
 % weight the values by the distance weights
-maxValsWeighted = maxVals + linScale(distanceWeights);
+maxValsWeighted = maxVals + this.jt.jointConfig{iJoint, 9} * linScale(distanceWeights);
+% weight the values by the angle weights
+maxValsWeighted = linScale(maxValsWeighted + this.jt.jointConfig{iJoint, 11} * linScale(angleWeights));
 % re-sort the values with the weighting
 [maxValsWeightedSorted, weightingSortingIndexes] = sort(maxValsWeighted);
 % get the ordering of the original indexes
@@ -244,10 +263,8 @@ if ~isempty(jointMask);
 end;
 
 % add some images to the debug display
-if doPlot;
-    imgSteps = [imgSteps; {img, 'showPoints_img'; oriImg, 'showPoints_ori'} ];
-    imgSteps = [imgSteps; {img, 'showGroups_img'; oriImg, 'showGroups_ori'} ];
-end;
+imgSteps = [imgSteps; {img, 'showPoints_img'; oriImg, 'showPoints_ori'} ];
+imgSteps = [imgSteps; {img, 'showGroups_img'; oriImg, 'showGroups_ori'} ];
 
 % check if something was found
 if isempty(iMaxXs);
@@ -256,6 +273,11 @@ if isempty(iMaxXs);
     return;
 end;
 
+% % provide alternative options in case the validation fails / is not good for the first option
+% nGoupPoints = round(numel(img) / 20);
+% pointRange = 1 : nGoupPoints;
+% groupInds = clusterdata([iMaxXs(pointRange), iMaxYs(pointRange)], 'cutoff', 1);
+
 % get the final coordinates as the best option
 iMaxX = iMaxXs(1); iMaxY = iMaxYs(1); maxVal = -maxValsWeightedSorted(1);
 newCoords = [iMaxX, iMaxY] + imgOffsets;
@@ -263,13 +285,78 @@ newCoords = [iMaxX, iMaxY] + imgOffsets;
 o('#JTFindJoint: found coords [%.1f,%.1f] for joint %d with max at %.4f ...', iMaxX, iMaxY, iJoint, maxVal, ...
     2, this.verb);
 
+%% refine joint position
+if get(this.GUI.handles.jt.doRefineJointPos, 'Value');
+    
+    o('#JTFindJoint: refining coords [%.1f,%.1f] for joint %d ...', iMaxX, iMaxY, iJoint, 2, this.verb);
+    
+    % get the right frames to use
+    if get(this.GUI.handles.jt.viewOpts.preProc, 'Value');      framesToUse = this.jt.frames;
+    else                                                        framesToUse = this.jt.oriFrames;
+    end;
+    
+    % get a bounding box around the coordinates
+    firstRoundCoords = newCoords;
+    boxSize = 0.4 * this.jt.jointConfig{iJoint, 3}(2, :);
+    boxPos = [firstRoundCoords - boxSize / 2, boxSize - 1]; % use -1 to get the size right
+    % get the search region
+    img = imcrop(framesToUse(:, :, iFrame), boxPos);
+    imgSteps = [imgSteps; {img, 'refin_img'} ];
+    % invert image
+    img = linScale(img, [1, 0]);
+    imgSteps = [imgSteps; {img, 'refin_img_inv'} ];
+    % create the gaussian template
+    gaussTemplateCenter = fspecial('gaussian', jointSize, sqrt(nanmean(jointSize)));
+    gaussTemplateSize = size(img);
+    gaussTemplate = zeros(gaussTemplateSize) + min(gaussTemplateCenter(:));
+    % calculate center's offset
+    centerOffset = (size(gaussTemplate) - size(gaussTemplateCenter)) / 2;
+    % if no offset required, just use the center
+    if ~all(centerOffset > 0);
+        gaussTemplate = gaussTemplateCenter;
+    % otherwise replace the center in the template
+    else
+        gaussTemplate(floor(centerOffset(1) + 1) : floor(end - centerOffset(1)), ...
+            floor(centerOffset(2) + 1) : floor(end - centerOffset(2))) = gaussTemplateCenter;
+    end;
+    % scale the template between 0 and 1
+    gaussTemplate = linScale(gaussTemplate);
+
+    % make sure both images are the same size
+    gaussTemplate = imresize(gaussTemplate, size(img));
+
+    imgSteps = [imgSteps; { gaussTemplate, 'refin_gaussTemplate' }];
+    % calculate the normalized cross-correlation
+    xCorrRes = normxcorr2(gaussTemplate, img);
+    % remove the unwanted edges of the cross-correlation matrix by taking the center of the matrix:
+    % get center size as the size of the image and calculate the center's offset
+    centerSize = size(img); centerOffset = (size(xCorrRes) - centerSize) / 2;
+    % get the cropped cross-correlation matrix
+    xCorrRes = imcrop(xCorrRes, [fliplr(centerOffset) + 1, fliplr(centerSize) - 1]);
+    imgSteps = [imgSteps; { xCorrRes, 'xcorr_refin' } ];
+    % get the pixels indices sorted by maximum cross-correlation
+    [maxValsRefin, iMaxIndsRefin] = sort(-xCorrRes(:));
+    % get the indices as coordinates
+    [iMaxYsRefin, iMaxXsRefin] = ind2sub(size(img), iMaxIndsRefin);
+
+    % get the final coordinates as the best option
+    iMaxXRefin = iMaxXsRefin(1); iMaxYRefin = iMaxYsRefin(1); maxValRefin = -maxValsRefin(1);
+    newCoords = [iMaxXRefin, iMaxYRefin] + boxPos(1 : 2);
+
+    % add some images to the debug display
+    imgSteps = [imgSteps; {img, 'showPoints_refin' } ];
+    imgSteps = [imgSteps; {img, 'showGroups_refin' } ];
+    
+end;
+
 %% plotting
 % do plots if required
 if doPlot;
         
     % create figure
-    figH = figure('Name', sprintf('%s (%d) - frame: %d, refFrame: %d, ', this.jt.jointConfig{iJoint, 1}, ...
-            iJoint, iFrame, iRefFrame), 'NumberTitle', 'off', 'Tag', 'JTFindJointDebugPlots');
+    figure('Name', sprintf('%s (%d) - frame: %d, refFrame: %d, ', this.jt.jointConfig{iJoint, 1}, ...
+            iJoint, iFrame, iRefFrame), 'NumberTitle', 'off', 'Tag', 'JTFindJointDebugPlots', ...
+            'Position', this.GUI.jt.debugFigPos);
 
     % get the best indices for subplots
     nImgs = size(imgSteps, 1); N = ceil(sqrt(nImgs)); M = N;
@@ -289,12 +376,22 @@ if doPlot;
         if ~isempty(regexp(stepName, '^showPoints', 'once'));
             if ~isempty(stepImg); imagesc(stepImg); end;
             hold on;
-            r = jointSize; rectPos = [[iMaxX, iMaxY] - r / 2, r];
-            rectangle('Position', rectPos, 'EdgeColor', [0 0 1], 'Curvature', [1, 1]);
-            r = jointSize / 10; rectPos = [[iMaxX, iMaxY] - r / 2, r];
-            rectangle('Position', rectPos, 'EdgeColor', [1 0 0], 'FaceColor', [1 0 0], 'Curvature', [1, 1]);
-            hold off;
-            title(sprintf('%d: %s - max:%.2f', iPlot, stepName, maxVal), 'Interpreter', 'none');
+            if strcmp(stepName, 'refin');
+                r = jointSize; rectPos = [[iMaxXRefin, iMaxYRefin] - r / 2, r];
+                rectangle('Position', rectPos, 'EdgeColor', [0 0 1], 'Curvature', [1, 1]);
+                r = jointSize / 10; rectPos = [[iMaxXRefin, iMaxYRefin] - r / 2, r];
+                rectangle('Position', rectPos, 'EdgeColor', [1 0 0], 'FaceColor', [1 0 0], 'Curvature', [1, 1]);
+                title(sprintf('%d: %s - max:%.2f', iPlot, regexprep(stepName, 'showPoints_', ''), maxValRefin), ...
+                    'Interpreter', 'none');
+            else
+                r = jointSize; rectPos = [[iMaxX, iMaxY] - r / 2, r];
+                rectangle('Position', rectPos, 'EdgeColor', [0 0 1], 'Curvature', [1, 1]);
+                r = jointSize / 10; rectPos = [[iMaxX, iMaxY] - r / 2, r];
+                rectangle('Position', rectPos, 'EdgeColor', [1 0 0], 'FaceColor', [1 0 0], 'Curvature', [1, 1]);
+                hold off;
+                title(sprintf('%d: %s - max:%.2f', iPlot, regexprep(stepName, 'showPoints_', ''), maxVal), ...
+                    'Interpreter', 'none');
+            end;
 
         % if showing the groups is required
         elseif ~isempty(regexp(stepName, '^showGroups', 'once'));
@@ -303,18 +400,21 @@ if doPlot;
 %             nGoupPoints = round(numel(stepImg) / 20);
             nGoupPoints = 50;
             pointRange = 1 : nGoupPoints;
-            groupInds = clusterdata([iMaxXs(pointRange), iMaxYs(pointRange)], 'cutoff', 1);
-            axeHandles(iPlot) = gca;
-            if ~isempty(stepImg); imagesc(stepImg); end;
-            hold on;
-            scatter(iMaxXs(pointRange), iMaxYs(pointRange), 20, groupInds, 'filled');
+            if strcmp(stepName, 'refin');
+                groupInds = clusterdata([iMaxXsRefin(pointRange), iMaxYsRefin(pointRange)], 'cutoff', 1);
+                axeHandles(iPlot) = gca;
+                if ~isempty(stepImg); imagesc(stepImg); end;
+                hold on;
+                scatter(iMaxXsRefin(pointRange), iMaxYsRefin(pointRange), 20, groupInds, 'filled');
+            else
+                groupInds = clusterdata([iMaxXs(pointRange), iMaxYs(pointRange)], 'cutoff', 1);
+                axeHandles(iPlot) = gca;
+                if ~isempty(stepImg); imagesc(stepImg); end;
+                hold on;
+                scatter(iMaxXs(pointRange), iMaxYs(pointRange), 20, groupInds, 'filled');
+            end;
             hold off;
-
-%             meanVals = arrayfun(@(iGroup) mean(maxValsWeightedSorted(groupInds == iGroup)), 1 : max(groupInds));
-%             center = arrayfun(@(iGroup) mean(maxValsWeightedSorted(groupInds == iGroup)), 1 : max(groupInds));
-%             sumVals = arrayfun(@(iGroup) sum(maxValsWeightedSorted(groupInds == iGroup)), 1 : max(groupInds));
-%             nVals = arrayfun(@(iGroup) numel(maxValsWeightedSorted(groupInds == iGroup)), 1 : max(groupInds));
-            title(sprintf('%d: %s', iPlot, stepName), 'Interpreter', 'none');
+            title(sprintf('%d: %s', iPlot, regexprep(stepName, 'showGroups_', '')), 'Interpreter', 'none');
             
         % if showing the points is *not* required
         else
@@ -329,10 +429,27 @@ if doPlot;
     % figure settings: link all the valid axes, change colormap and make tight figures
     axeHandles(isnan(axeHandles)) = [];
     if ~isempty(axeHandles);
-        linkaxes(axeHandles, 'xy');
+        axeCategories = {};
+        for iAxe = 1 : numel(axeHandles);
+            catIndex = [];
+            for iCat = 1 : numel(axeCategories);
+                if all([get(axeCategories{iCat}(1), 'XLim'), get(axeCategories{iCat}(1), 'XLim')] ...
+                        == [get(axeHandles(iAxe), 'XLim'), get(axeHandles(iAxe), 'XLim')]);
+                    catIndex = iCat;
+                    break;
+                end;
+            end;
+            if isempty(catIndex);
+                axeCategories{end + 1} = []; %#ok<AGROW>
+                catIndex = numel(axeCategories);
+            end;
+            axeCategories{catIndex}(end + 1) = axeHandles(iAxe); %#ok<AGROW>
+        end;
+        for iCat = 1 : numel(axeCategories);
+            linkaxes(axeCategories{iCat}, 'xy');
+        end;
     end;
     colormap(this.GUI.jt.preProcDebugColormap);
-    tightfig(figH);
     
 end;
     

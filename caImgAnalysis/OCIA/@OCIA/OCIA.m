@@ -47,7 +47,7 @@ classdef OCIA < handle
     eventually overlap them with expression image using stiching algorithm
  -- behavior movie: read the video with 'video2mat.m' and eventually match frames to trials
  -- small thumbnail of the currently selected row(s) also for other data types (behavior, intrinsic, behavMovie)
-  --- requires frame grouping (à la imageJ ...)
+  --- requires frame grouping (? la imageJ ...)
  -- only load imaging data once from the DataWatcher's table and then re-use it for analysis and ROI drawing
  -- enable the "real" analysis pipeline support : load imaging data files (.bin)(HDF5?)
  -- implement GUI items/config file for analysis parameters
@@ -1329,16 +1329,56 @@ if ~isChangeMode;
             
         %% --- #keyPressed : JointTracker
         case 'JointTracker';
-            switch e.Key;
+            % get current object
+            currObj = get(this.GUI.figH, 'CurrentObject');
+            
+            % check for key presses not while inside a text uicontrol element
+            if ~isa(currObj, 'matlab.ui.control.UIControl') || ~ismember(get(currObj, 'Style'), { 'edit' });
+                switch e.Key;
+
+                    % print help for shortcuts
+                    case 'h';
+                        msgCellArray = { ...
+                            'This is the \bfhelp\rm for the \bfshortcuts\rm of the JointTracker mode of OCIA.', ...
+                            'Following shortcuts can be used:', ...
+                            '\bf               [H]                       \rmDisplay this help', ...
+                            '-------------------------------------------------------------------------------------------', ...
+                            '\bf             [A / D]                     \rmPrevious / next frame', ...
+                            '\bf     [left / right arrows]               \rmPrevious / next  frame', ...
+                            '\bf   [SHIFT]  +  [A / D]                   \rmFirst / last frame', ...
+                            '\bf   [SHIFT]  + [left / right arrows]      \rmFirst / last frame', ...
+                            '-------------------------------------------------------------------------------------------', ...
+                            '\bf               [C]                       \rmChange the cursor display (dot <-> pointer)', ...
+                            '-------------------------------------------------------------------------------------------', ...
+                            '\bf           [W / S]                       \rmChange joint type (manual <-> auto)', ...
+                            '\bf       [up / down arrow]                 \rmChange joint type (manual <-> auto)', ...
+                            '-------------------------------------------------------------------------------------------', ...
+                            '\bf               [F]                       \rmStart / stop auto-track', ...
+                            '\bf               [V]                       \rmStart / stop manual-track', ...
+                            '\bf               [M]                       \rmStart / stop manual-track', ...
+                        }';
+                        % display a message box
+                        h = msgbox(msgCellArray);
+                        
+                        % make sure the box is big enough
+                        boxPos = get(h, 'Position');
+                        set(h, 'Position', boxPos + [-200, -75, 400, 150]);
+                        % make font bigger
+                        hChild = get(h, 'Children');
+                        set(hChild(2), 'Units', 'Normalized', 'Position', [0, 0, 1, 1]);
+                        hText = get(hChild(2), 'Children');
+                        set(hText, 'FontSize', 12, 'Units', 'Normalized', 'Position', [0.01, 0.98, 0], ...
+                            'FontName', 'Courier', 'VerticalAlignment', 'top', 'String', msgCellArray, ...
+                            'Interpreter', 'tex');
                 case 'c';
                     JTSwapCursor(this);
-                case 'a';
+                case { 'a', 'leftarrow' };
                     if ismember('shift', e.Modifier);
                         set(this.GUI.handles.jt.frameSetter, 'Value', 1);
                     else
                         set(this.GUI.handles.jt.frameSetter, 'Value', max(this.GUI.jt.iFrame - 1, 1));
                     end;
-                case 'd';
+                case { 'd', 'rightarrow' };
                     if ismember('shift', e.Modifier);
                         if get(this.GUI.handles.jt.autoTrack, 'Value');
                             JTProcess(this, 'all');
@@ -1348,8 +1388,9 @@ if ~isChangeMode;
                     else
                         set(this.GUI.handles.jt.frameSetter, 'Value', min(this.GUI.jt.iFrame + 1, this.jt.nFrames));
                     end;
-                case {'w', 's'};
-                    addValue = 1; if strcmp(e.Key, 's'); addValue = -1; end;
+                    
+                case {'w', 's', 'uparrow', 'downarrow', };
+                    addValue = 1; if strcmp(e.Key, 's') || strcmp(e.Key, 'downarrow'); addValue = -1; end;
                     newValue = min(max(this.GUI.jt.iJointType + addValue, 1), this.jt.nJointTypes);
                     if newValue ~= get(this.GUI.handles.jt.jointTypeSelSetter, 'Value');
                         set(this.GUI.handles.jt.jointTypeSelSetter, 'Value', newValue);
@@ -1362,12 +1403,13 @@ if ~isChangeMode;
                     set(this.GUI.handles.jt.manuTrack, 'Value', ~get(this.GUI.handles.jt.manuTrack, 'Value'));
                     JTManualTrackStart(this);
                 case 'space';
-                    set(this.GUI.handles.jt.viewOpts.preProc, 'Value', ...
-                        ~get(this.GUI.handles.jt.viewOpts.preProc, 'Value'));
-                    JTUpdateGUI(this, this.GUI.handles.jt.viewOpts.preProc);
+%                     set(this.GUI.handles.jt.viewOpts.preProc, 'Value', ...
+%                         ~get(this.GUI.handles.jt.viewOpts.preProc, 'Value'));
+%                     JTUpdateGUI(this, this.GUI.handles.jt.viewOpts.preProc);
                 otherwise;
-%                         showWarning(this, 'OCIA:keyPressed:UnknownKey', sprintf('Unknown key (%s) pressed.', e.Key));
-            end;
+%                     showWarning(this, 'OCIA:keyPressed:UnknownKey', sprintf('Unknown key (%s) pressed.', e.Key));
+                end;
+            end; % end of check for key presses not while inside a text uicontrol element
             
         %% --- #keyPressed : Discriminator
         case 'Discriminator';
@@ -1605,7 +1647,21 @@ function mouseMoved(this, ~, e)
                     OCIA_trialview_changeFrame(this, clickedObj, e);
                 end;
             end;
+        
+        case 'JointTracker';
             
+            coords = get(this.GUI.handles.jt.axe, 'CurrentPoint');
+            coords = round(coords(1, 1 : 2));
+            if all(coords > 0) && coords(1) < size(this.GUI.jt.img, 2) && coords(2) < size(this.GUI.jt.img, 1);
+                this.GUI.jt.mouseCoords = coords;
+                % update the frame label
+                currTimeTotSec = this.GUI.jt.iFrame / this.jt.frameRate;
+                currTimeMin = floor(currTimeTotSec / 60);
+                currTimeSec = floor(currTimeTotSec - currTimeMin * 60);
+                currTimeMSec = floor((currTimeTotSec - currTimeMin * 60 - currTimeSec) * 1000);
+                set(this.GUI.handles.jt.frameLabel, 'String', sprintf('F  %03d\nT  %02d:%02d.%03d\nM %04d %04d', ...
+                    this.GUI.jt.iFrame, currTimeMin, currTimeSec, currTimeMSec, coords));
+            end;
     end;
 
 end;

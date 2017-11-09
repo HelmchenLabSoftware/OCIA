@@ -16,7 +16,7 @@ end;
 preProcROIHandle = this.GUI.jt.imPreProcROI;
 
 % if previous handle exists, pre-process the movie
-if ~isempty(preProcROIHandle) && isa(preProcROIHandle, 'imfreehand') && preProcROIHandle.isvalid();
+if ~isempty(preProcROIHandle) && isa(preProcROIHandle, 'imroi') && preProcROIHandle.isvalid();
 
     preProcTic = tic; % for performance timing purposes
     this.GUI.jt.selectingROI = false;
@@ -95,6 +95,8 @@ if ~isempty(preProcROIHandle) && isa(preProcROIHandle, 'imfreehand') && preProcR
     this.jt.frames = frames;
 
     showMessage(this, sprintf('Pre-processing frames done (%3.1f sec).', toc(preProcTic)));
+    % empty the selection so another ROI can be defined
+    this.GUI.jt.imPreProcROI = [];
 
     % update GUI and get back the focus to frame setter
     set(this.GUI.handles.jt.viewOpts.preProc, 'Value', 1);
@@ -113,7 +115,9 @@ else
         preProcROIHandle = [];
         showMessage(this, 'Drawing pre-process region aborted.', 'yellow');
     end;
-    
+    % drawing stopped
+    this.GUI.jt.selectingROI = false;
+    % store handle to created ROI
     this.GUI.jt.imPreProcROI = preProcROIHandle;
     
 end;

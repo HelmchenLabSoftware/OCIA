@@ -112,22 +112,22 @@ for iJoint = this.jt.jointProcessOrder;
     end;
     
     % get the right frames to use
-    if this.GUI.handles.jt.viewOpts.preProc;    framesToUse = this.jt.frames;
-    else                                        framesToUse = this.jt.oriFrames;
+    if get(this.GUI.handles.jt.viewOpts.preProc, 'Value');      framesToUse = this.jt.frames;
+    else                                                        framesToUse = this.jt.oriFrames;
     end;
     
     % get the standard box size and use it for getting the frame-wise correlation within the bounding box
-    boxSize = jConfig{iJoint, 3}(2, :);
+    oldBoxSize = jConfig{iJoint, 3}(2, :);
     % make sure box sides are always odd length
-    for i = 1 : 2; if mod(boxSize(i), 2) == 0; boxSize(i) = boxSize(i) - 1; end; end;
+    for i = 1 : 2; if mod(oldBoxSize(i), 2) == 0; oldBoxSize(i) = oldBoxSize(i) - 1; end; end;
     % get the coordinates from the previous frame
     refCoords = squeeze(this.jt.joints(iJoint, iRefFrame, :, iRefJointType))';
     % build the box's limits and crop the images
-    boxLim = [refCoords - boxSize / 2, boxSize - 1]; % use -1 to get the size right
-    img = imcrop(framesToUse(:, :, iFrame), boxLim);
-    refImg = imcrop(framesToUse(:, :, iRefFrame), boxLim);
+    prevBoxLim = [refCoords - oldBoxSize / 2, oldBoxSize - 1]; % use -1 to get the size right
+    img = imcrop(framesToUse(:, :, iFrame), prevBoxLim);
+    refImg = imcrop(framesToUse(:, :, iRefFrame), prevBoxLim);
     % get the frame-wise correlation from the reference to the current frame
-    frameCorr = getFrameCorr(img, refImg);
+    oldFrameCorr = getFrameCorr(img, refImg);
 
     % adjust the box's size using the frame-wise correlation: get the box limits and the maximum size range
     minBoxSize = jConfig{iJoint, 3}(1, :); maxBoxSize = jConfig{iJoint, 3}(3, :);
@@ -135,30 +135,96 @@ for iJoint = this.jt.jointProcessOrder;
     % set the maximum and minimum expected correlation change
     minFrameCorr = 0.65; maxFrameCorr = 0.95; frameCorrDiff = maxFrameCorr - minFrameCorr;
     % adjust the box's size according to the frame-wise correlation (linear relationship)
-    boxSize = round(min(boxSizeRangeDiff * (1 - (max(frameCorr - minFrameCorr, 0) / frameCorrDiff)) + minBoxSize, maxBoxSize));
+    boxSize = round(min(boxSizeRangeDiff * (1 - (max(oldFrameCorr - minFrameCorr, 0) / frameCorrDiff)) + minBoxSize, maxBoxSize));
     % make sure box sides are always odd length
     for i = 1 : 2; if mod(boxSize(i), 2) == 0; boxSize(i) = boxSize(i) - 1; end; end;
     o('#JTProcess(): joint %d, img vs refImg correlation (frame %d vs %d) : %.4f => boxSize: [%d, %d] => [%d, %d].', ...
-        iJoint, iFrame, iRefFrame, frameCorr, jConfig{iJoint, 3}(2, :), boxSize, 2, this.verb);
+        iJoint, iFrame, iRefFrame, oldFrameCorr, jConfig{iJoint, 3}(2, :), boxSize, 2, this.verb);
      
     % build the box's new limits and crop the images with the new limits
     boxLim = floor([refCoords - boxSize / 2, boxSize - 1]); % use -1 to get the size right
-    img = imcrop(framesToUse(:, :, iFrame), boxLim);
-    refImg = imcrop(framesToUse(:, :, iRefFrame), boxLim);
+    newImg = imcrop(framesToUse(:, :, iFrame), boxLim);
+    newRefImg = imcrop(framesToUse(:, :, iRefFrame), boxLim);
     
     % crop the mask unless it is empty
     jointMask = this.jt.jointROIMasks{iJoint};
     if ~isempty(jointMask); jointMask = imcrop(jointMask, boxLim); end;
     
-    % set the bounding boxe's limits
+    % set the bounding box's limits
     this.GUI.jt.boundBoxPos(iJoint, iFrame, iJointType, :) = [refCoords - boxSize / 2 boxSize];
     
     % find the joint and store the coordinates
-    newCoords(iJoint, :) = JTFindJoint(this, img, refImg, jointMask, iJoint, iFrame, iRefFrame, ...
+    newCoords(iJoint, :) = JTFindJoint(this, newImg, newRefImg, jointMask, iJoint, iFrame, iRefFrame, ...
         [boxLim(1), boxLim(2)], showDebugPlot);
     
     % store the joints
     this.jt.joints(iJoint, iFrame, :, iJointType) = newCoords(iJoint, :);
+    
+    % validate the joint's position using frame to frame correlation:
+    % re-build the box with the old limits, using the new coordinates and crop the images
+    oldBoxLimNewCoords = floor([newCoords(iJoint, :) - oldBoxSize / 2, oldBoxSize - 1]); % use -1 to get the size right
+    newCoordsOldBoxImg = imcrop(framesToUse(:, :, iFrame), oldBoxLimNewCoords);
+    % get the frame-wise correlation from the reference to the current frame
+    frameCorrNewCoordsOldBox = getFrameCorr(newCoordsOldBoxImg, refImg);
+    % re-build the box with the new limits, using the new coordinates and crop the images
+    newBoxLimNewCoords = floor([newCoords(iJoint, :) - boxSize / 2, boxSize - 1]); % use -1 to get the size right
+    newCoordsImg = imcrop(framesToUse(:, :, iFrame), newBoxLimNewCoords);
+    % get the frame-wise correlation from the reference to the current frame
+    frameCorrNewCoordsNewBox = getFrameCorr(newCoordsImg, newRefImg);
+    % get the best correlation value (either old or new box)
+    bestFrameCorr = max(frameCorrNewCoordsNewBox, frameCorrNewCoordsOldBox);
+    this.GUI.jt.jointValidity(iJoint, iFrame) = bestFrameCorr;
+%     showMessage(this, sprintf('Joint %d validation on frame %d: best frame corr. = %.4f', ...
+%         iJoint, iFrame, bestFrameCorr));
+    
+    o(['#JTProcess(): joint %d validation, img vs refImg correlation (frame %d vs %d) with new coords: ', ...
+        '%.4f (old box, [%d, %d]) and %.4f (new box, [%d, %d]).'], iJoint, iFrame, iRefFrame, ...
+        frameCorrNewCoordsOldBox, oldBoxSize, frameCorrNewCoordsNewBox, boxSize, 2, this.verb);
+    
+    if get(this.GUI.handles.jt.viewOpts.validPlots, 'Value');
+        figure(2 + iJoint);
+        set(figure(2 + iJoint), 'NumberTitle', 'off', 'Name', sprintf('Joint %d validation', iJoint), ...
+            'Tag', 'JTValidJointFigure', 'Position', this.GUI.jt.debugFigPos);
+        
+        frameCorr = getFrameCorr(img, refImg);
+        subplot(4, 3, 1); imagesc(refImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d] ', iRefFrame, iRefFrame, iRefFrame));
+        subplot(4, 3, 2); imagesc(img);
+        title(sprintf('box[F%d], coords[F%d], img[F%d]', iRefFrame, iRefFrame, iFrame));
+        subplot(4, 3, 3); imagesc(img - refImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d - F%d]: F2F corr.: %.4f ', iRefFrame, iRefFrame, ...
+            iFrame, iRefFrame, frameCorr));
+        
+        frameCorr = getFrameCorr(newImg, newRefImg);
+        subplot(4, 3, 4); imagesc(newRefImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d] ', iFrame, iRefFrame, iRefFrame));
+        subplot(4, 3, 5); imagesc(newImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d]', iFrame, iRefFrame, iFrame));
+        subplot(4, 3, 6); imagesc(newImg - newRefImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d - F%d]: F2F corr.: %.4f ', iFrame, iRefFrame, ...
+            iFrame, iRefFrame, frameCorr));
+        
+        frameCorr = getFrameCorr(newCoordsOldBoxImg, refImg);
+        subplot(4, 3, 7); imagesc(refImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d] ', iRefFrame, iRefFrame, iRefFrame));
+        subplot(4, 3, 8); imagesc(newCoordsOldBoxImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d]', iRefFrame, iFrame, iFrame));
+        subplot(4, 3, 9); imagesc(newCoordsOldBoxImg - refImg);
+        title(sprintf('box[F%d], coords[F%d & F%d], img[F%d - F%d]: F2F corr.: %.4f ', ...
+            iRefFrame, iFrame, iRefFrame, iFrame, iRefFrame, frameCorr));
+        
+        frameCorr = getFrameCorr(newCoordsImg, newRefImg);
+        subplot(4, 3, 10); imagesc(newRefImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d] ', iFrame, iRefFrame, iRefFrame));
+        subplot(4, 3, 11); imagesc(newCoordsImg);
+        title(sprintf('box[F%d], coords[F%d], img[F%d]', iFrame, iFrame, iFrame));
+        subplot(4, 3, 12); imagesc(newCoordsImg - newRefImg);
+        title(sprintf('box[F%d], coords[F%d & F%d], img[F%d - F%d]: F2F corr.: %.4f ', ...
+            iFrame, iFrame, iRefFrame, iFrame, iRefFrame, frameCorr));
+        
+        set(figure(2 + iJoint), 'Colormap', mapgeog);
+        figure(this.GUI.figH);
+    end;
     
 end;
 
@@ -169,7 +235,7 @@ JTUpdateGUI(this);
     
 % tile the figures if any
 if showDebugPlot;
-    tilefigs();
+%     tilefigs();
     figure(this.GUI.figH);
 end;
 

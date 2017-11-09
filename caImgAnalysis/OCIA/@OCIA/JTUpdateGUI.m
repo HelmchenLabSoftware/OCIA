@@ -20,7 +20,8 @@ viewOpts = this.GUI.handles.jt.viewOpts;
 
 % update the joints if there is no handle or for some specific handles or for the 'joints' string
 updateJoints = false;
-if isempty(h) || (~ischar(h) && any(h == [viewOpts.joints, viewOpts.jointLines, viewOpts.boundBoxes])) ...
+if isempty(h) || (~ischar(h) ...
+        && any(h == [viewOpts.joints, viewOpts.jointLines, viewOpts.boundBoxes, viewOpts.jointDist])) ...
         || (ischar(h) && (strcmpi(h, 'all') || strcmpi(h, 'joints')));
     updateJoints = true;
 end;
@@ -63,7 +64,9 @@ if updateJoints;
                 jointHandleName = sprintf('JTJoint_%s_%02d', this.jt.jointTypes{iJointType, 1}, iJoint);
                 jointLineHandleName = sprintf('JTJointLine_%s_%02d', this.jt.jointTypes{iJointType, 1}, iJoint);
                 jointBBoxHandleName = sprintf('JTBBox_%s_%02d', this.jt.jointTypes{iJointType, 1}, iJoint);
-                regexpTxt = sprintf('^(%s|%s|%s)$', jointHandleName, jointLineHandleName, jointBBoxHandleName);
+                jointDistHandleName = sprintf('JTDist_%s_%02d', this.jt.jointTypes{iJointType, 1}, iJoint);
+                regexpTxt = sprintf('^(%s|%s|%s|%s)$', jointHandleName, jointLineHandleName, jointBBoxHandleName, ...
+                    jointDistHandleName);
                 
                 % delete the elements of the list
                 try         delete(childHands(~cellfun(@isempty, regexp(regexpTxt, childTags))));
@@ -79,6 +82,16 @@ if updateJoints;
                 end;
             end;
         end;
+        
+        % update joint validity picture:
+        set(this.GUI.handles.jt.validImg, 'CData', this.GUI.jt.jointValidity);
+        delete(get(this.GUI.handles.jt.joinValDispAxe, 'Children'));
+        set(this.GUI.handles.jt.joinValDispAxe, 'XLim', [0 10], 'YLim', [0.5 this.jt.nJoints + 0.5]);
+        for iJoint = 1 : this.jt.nJoints;
+            text(1, this.jt.nJoints - iJoint + 1, sprintf('J%d: %.3f', iJoint, this.GUI.jt.jointValidity(iJoint, this.GUI.jt.iFrame)), ...
+                'Parent', this.GUI.handles.jt.joinValDispAxe, 'FontSize', 16);
+        end;
+        
     end;
 end;
 
@@ -126,7 +139,9 @@ end;
 
 
 % set the focus to the frame setter if the call was from a GUI element
-if ~isempty(h) && ~ischar(h) && ishandle(h) && h > 0; uicontrol(this.GUI.handles.jt.frameSetter); end;
+if ~isempty(h) && ~ischar(h) && ishandle(h);
+    uicontrol(this.GUI.handles.jt.frameSetter);
+end;
 
 o('#JTUpdateGUI: h: %.5f done (%.1f sec)', h, toc(updateTic), 3, this.verb);
 

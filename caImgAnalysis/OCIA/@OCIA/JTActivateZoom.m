@@ -36,7 +36,7 @@ if zoomState;
 else
     zoom(this.GUI.handles.jt.axe, 'off');
     showMessage(this, 'Zoom disabled for JointTracker.', 'yellow');
-    if ~isempty(h) && ~ischar(h) && ishandle(h) && h > 0; uicontrol(this.GUI.handles.jt.frameSetter); end;
+    if ~isempty(h) && ~ischar(h) && ishandle(h); uicontrol(this.GUI.handles.jt.frameSetter); end;
 end;
 
 end

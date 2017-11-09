@@ -38,7 +38,12 @@ function JTChangeFrame(this, ~, e)
     end;
     
     % update the frame label
-    set(this.GUI.handles.jt.frameLabel, 'String', sprintf('Frame %03d', iFrame));
+    currTimeTotSec = iFrame / this.jt.frameRate;
+    currTimeMin = floor(currTimeTotSec / 60);
+    currTimeSec = floor(currTimeTotSec - currTimeMin * 60);
+    currTimeMSec = floor((currTimeTotSec - currTimeMin * 60 - currTimeSec) * 1000);
+    set(this.GUI.handles.jt.frameLabel, 'String', sprintf('F  %03d\nT  %02d:%02d.%03d\nM %04d %04d', ...
+        iFrame, currTimeMin, currTimeSec, currTimeMSec, this.GUI.jt.mouseCoords));
 
     % if we moved forward and the manual tracking was on when the frame was changed, label the joint
     if this.GUI.jt.iFrame < iFrame && get(this.GUI.handles.jt.manuTrack, 'Value');
@@ -51,6 +56,9 @@ function JTChangeFrame(this, ~, e)
     
     % change the current frame
     this.GUI.jt.iFrame = iFrame;
+    
+    % move validity frame indicator bar
+    set(this.GUI.handles.jt.validityFrameIndicator, 'XData', [iFrame, iFrame]);
         
     % refresh the joints' display
     JTUpdateGUI(this, 'all');

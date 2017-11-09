@@ -46,6 +46,9 @@ elseif ~isempty(this.GUI.jt.placeJointIndex) || ~isempty(this.GUI.jt.moveJointIn
     % mark joint as forced-placed
     this.GUI.jt.forcedJoints(iJoint, iFrame, iJointType) = true;
     
+    % if the joint was manually placed, remove the joint's as validity
+    this.GUI.jt.jointValidity(iJoint, iFrame) = NaN;
+    
     % if previous joint is virtual and not forced-placed, reset it
     if iJoint > 1 && this.jt.jointConfig{iJoint - 1, 2} && ~this.GUI.jt.forcedJoints(iJoint - 1, iFrame, iJointType);
         this.jt.joints(iJoint - 1, iFrame, :, iJointType) = [0 0];
